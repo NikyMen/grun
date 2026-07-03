@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  /* Verde GRÜN (del logo) */
+  --color-grun-50: #f0f9f3;
+  --color-grun-100: #dbf0e2;
+  --color-grun-200: #b9e1c9;
+  --color-grun-300: #8bcaa8;
+  --color-grun-400: #59ad83;
+  --color-grun-500: #379066;
+  --color-grun-600: #267351;
+  --color-grun-700: #1e5c42;
+  --color-grun-800: #1a4a37;
+  --color-grun-900: #163d2e;
+  --color-grun-950: #0b221a;
+
+  /* Verde limón (Consultoría Digital) */
+  --color-lima: #c9f158;
+  --color-lima-bright: #d7fa6b;
+  --color-lima-dark: #a4cf2e;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background-color: #f4f7f5;
+  color: #10201a;
+}
+
+/* Marca "consultoríadigital" (wordmark estirado como el logo) */
+.wordmark {
+  display: inline-block;
+  transform: scaleX(1.32);
+  transform-origin: center;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+.wordmark b {
+  font-weight: 900;
+}
+
+/* Scrollbars discretos */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #b9e1c9;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Contenido generado por la IA */
+.ai-md h3, .ai-md h2, .ai-md h1 {
+  font-weight: 700;
+  margin: 0.6em 0 0.25em;
+}
+.ai-md ul, .ai-md ol {
+  padding-left: 1.2em;
+  margin: 0.35em 0;
+  list-style: disc;
+}
+.ai-md ol { list-style: decimal; }
+.ai-md li { margin: 0.18em 0; }
+.ai-md p { margin: 0.35em 0; }
+.ai-md strong { font-weight: 700; color: #163d2e; }
