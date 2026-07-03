@@ -1,15 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { getDb } from "./db";
 import { buildDigest } from "./metrics";
 
-const MODEL = "claude-opus-4-8";
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 
 export function hasApiKey() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(process.env.OPENAI_API_KEY);
 }
 
 function client() {
-  return new Anthropic();
+  return new OpenAI();
 }
 
 const BASE_SYSTEM = `Sos un analista senior de marketing digital y datos de Consultoría Digital.
@@ -38,13 +38,17 @@ function ratedInsightsContext(): string {
   return `\n\nFeedback del usuario sobre análisis anteriores (afiná tus respuestas: profundizá lo marcado ÚTIL, evitá repetir el enfoque de lo NO ÚTIL):\n${lines.join("\n")}`;
 }
 
+function systemPrompt(digest: string): string {
+  return `${BASE_SYSTEM}\n\nDatos actuales del negocio (JSON):\n${digest}${ratedInsightsContext()}`;
+}
+
 export async function chat(userMessage: string): Promise<string> {
   const db = getDb();
   db.prepare("INSERT INTO chat_messages (role, content) VALUES ('user', ?)").run(userMessage);
 
   if (!hasApiKey()) {
     const msg =
-      "⚠️ El chat de IA no está configurado todavía. Cargá tu clave en la variable **ANTHROPIC_API_KEY** del archivo `.env.local` y reiniciá el servidor.";
+      "⚠️ El chat de IA no está configurado todavía. Cargá tu clave en la variable **OPENAI_API_KEY** del archivo `.env.local` y reiniciá el servidor.";
     db.prepare("INSERT INTO chat_messages (role, content) VALUES ('assistant', ?)").run(msg);
     return msg;
   }
@@ -56,27 +60,18 @@ export async function chat(userMessage: string): Promise<string> {
   ).reverse();
 
   const digest = buildDigest();
-  const messages: Anthropic.MessageParam[] = history.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt(digest) },
+    ...history.map((m) => ({ role: m.role, content: m.content }) as const),
+  ];
 
   try {
-    const response = await client().messages.create({
+    const response = await client().chat.completions.create({
       model: MODEL,
       max_tokens: 4096,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "medium" },
-      system: [
-        { type: "text", text: BASE_SYSTEM, cache_control: { type: "ephemeral" } },
-        { type: "text", text: `Datos actuales del negocio (JSON):\n${digest}${ratedInsightsContext()}` },
-      ],
       messages,
     });
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
+    const text = response.choices[0]?.message?.content ?? "";
     db.prepare("INSERT INTO chat_messages (role, content) VALUES ('assistant', ?)").run(text);
     return text;
   } catch (err) {
@@ -100,7 +95,7 @@ export async function generateInsight(section: string, filters: Record<string, s
     return {
       id: 0,
       content:
-        "⚠️ Configurá **ANTHROPIC_API_KEY** en `.env.local` para habilitar las recomendaciones de IA.",
+        "⚠️ Configurá **OPENAI_API_KEY** en `.env.local` para habilitar las recomendaciones de IA.",
     };
   }
   const digest = buildDigest(filters);
@@ -110,16 +105,11 @@ export async function generateInsight(section: string, filters: Record<string, s
     : "";
 
   try {
-    const response = await client().messages.create({
+    const response = await client().chat.completions.create({
       model: MODEL,
       max_tokens: 2048,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "medium" },
-      system: [
-        { type: "text", text: BASE_SYSTEM, cache_control: { type: "ephemeral" } },
-        { type: "text", text: `Datos actuales del negocio (JSON):\n${digest}${ratedInsightsContext()}` },
-      ],
       messages: [
+        { role: "system", content: systemPrompt(digest) },
         {
           role: "user",
           content: `Generá un análisis breve enfocado en ${focus}.${filtersNote}
@@ -127,10 +117,7 @@ Estructura: 1) un hallazgo principal con el número que lo respalda, 2) 3 a 4 re
         },
       ],
     });
-    const content = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
+    const content = response.choices[0]?.message?.content ?? "";
     const r = db
       .prepare("INSERT INTO ai_insights (section, content) VALUES (?, ?)")
       .run(section, content);
@@ -145,13 +132,13 @@ export function rateInsight(id: number, rating: number) {
 }
 
 function aiError(err: unknown): string {
-  if (err instanceof Anthropic.AuthenticationError)
-    return "⚠️ La clave ANTHROPIC_API_KEY no es válida. Revisala en `.env.local`.";
-  if (err instanceof Anthropic.RateLimitError)
+  if (err instanceof OpenAI.AuthenticationError)
+    return "⚠️ La clave OPENAI_API_KEY no es válida. Revisala en `.env.local`.";
+  if (err instanceof OpenAI.RateLimitError)
     return "⚠️ Límite de uso de la API alcanzado. Esperá un momento y volvé a intentar.";
-  if (err instanceof Anthropic.APIConnectionError)
-    return "⚠️ No se pudo conectar con la API de Claude. Revisá la conexión a internet del servidor.";
-  if (err instanceof Anthropic.APIError)
-    return `⚠️ Error de la API de Claude (${err.status}): ${err.message}`;
+  if (err instanceof OpenAI.APIConnectionError)
+    return "⚠️ No se pudo conectar con la API de OpenAI. Revisá la conexión a internet del servidor.";
+  if (err instanceof OpenAI.APIError)
+    return `⚠️ Error de la API de OpenAI (${err.status}): ${err.message}`;
   return `⚠️ Error inesperado: ${err instanceof Error ? err.message : String(err)}`;
 }
