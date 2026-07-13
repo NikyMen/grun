@@ -4,11 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
   Megaphone,
-  MessageCircle,
-  ShoppingBag,
-  GitMerge,
   Sparkles,
   Database,
   LogOut,
@@ -16,11 +12,7 @@ import {
 import ConsultoriaBadge from "./ConsultoriaBadge";
 
 const NAV = [
-  { href: "/", label: "Resumen", icon: LayoutDashboard },
   { href: "/pauta", label: "Pauta Meta", icon: Megaphone },
-  { href: "/conversaciones", label: "Conversaciones", icon: MessageCircle },
-  { href: "/ventas", label: "Ventas", icon: ShoppingBag },
-  { href: "/matching", label: "Cruce y conversión", icon: GitMerge },
   { href: "/chat", label: "Chat IA", icon: Sparkles },
   { href: "/datos", label: "Datos", icon: Database },
 ];

@@ -89,7 +89,8 @@ export function getOverview(f: Filters) {
   const swm = salesWhere(f, "s.");
   const cwm = contactsWhere(f);
   const matched = db.prepare(`
-    SELECT COUNT(DISTINCT s.phone) matchedPhones, COALESCE(SUM(s.amount),0) matchedRevenue
+    SELECT COUNT(DISTINCT s.phone) matchedPhones, COUNT(*) matchedSales,
+           COALESCE(SUM(s.amount),0) matchedRevenue
     FROM sales s
     WHERE s.phone != '' AND ${swm.where}
       AND s.phone IN (SELECT phone FROM contacts WHERE phone != '' AND ${cwm.where})
@@ -111,6 +112,7 @@ export function getOverview(f: Filters) {
     sales: Number(sales.total),
     revenue: Number(sales.revenue),
     matchedPhones,
+    matchedSales: Number(matched.matchedSales) || 0,
     matchedRevenue,
     conversionRate: withPhone > 0 ? (matchedPhones / withPhone) * 100 : 0,
     costPerConversation: conversations > 0 ? spend / conversations : 0,

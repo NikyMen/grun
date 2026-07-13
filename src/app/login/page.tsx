@@ -27,7 +27,7 @@ export default function LoginPage() {
         setError(data.error || "Error al iniciar sesión");
         return;
       }
-      router.push("/");
+      router.push("/pauta");
       router.refresh();
     } catch {
       setError("No se pudo conectar con el servidor");

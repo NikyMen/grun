@@ -9,11 +9,9 @@ import { mdToHtml } from "@/lib/fmt";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const SUGGESTIONS = [
-  "¿Qué porcentaje de los que escriben termina comprando?",
+  "¿Qué porcentaje de las ventas se vincula al CRM por teléfono?",
+  "¿Cuánto facturé por cada peso invertido en pauta?",
   "¿Qué campaña me conviene escalar y cuál apagar?",
-  "¿A qué hora conviene reforzar la atención por WhatsApp?",
-  "¿Qué sucursal convierte mejor las conversaciones en ventas?",
-  "¿Dónde estoy perdiendo plata en la pauta?",
   "Dame un plan de acción para la próxima semana",
 ];
 
