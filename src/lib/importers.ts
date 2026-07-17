@@ -102,7 +102,7 @@ function detectKind(map: Map<string, number>): SheetKind {
 
 // ---------- importadores por tipo ----------
 
-function importContacts(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
+function importContacts(ws: ExcelJS.Worksheet, sourceFile: string, blockId: number): ImportResult {
   const db = getDb();
   const map = headerMap(ws);
   const cId = findCol(map, "id");
@@ -116,8 +116,8 @@ function importContacts(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult
   const cPhoneCell = findCol(map, "telefono celular");
 
   const ins = db.prepare(`
-    INSERT OR IGNORE INTO contacts (crm_id, name, phone, phone_raw, branch, lead_ref, tags, created_at, source_file)
-    VALUES (@crm_id, @name, @phone, @phone_raw, @branch, @lead_ref, @tags, @created_at, @source_file)
+    INSERT OR IGNORE INTO contacts (crm_id, name, phone, phone_raw, branch, lead_ref, tags, created_at, source_file, block_id)
+    VALUES (@crm_id, @name, @phone, @phone_raw, @branch, @lead_ref, @tags, @created_at, @source_file, @block_id)
   `);
 
   let inserted = 0;
@@ -135,7 +135,9 @@ function importContacts(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult
         "";
       const created = cCreated > 0 ? parseDateTime(row.getCell(cCreated).value) : "";
       const rec = {
-        crm_id: crmId || md5(`${name}|${rawPhone}|${created}`),
+        // crm_id lleva el bloque adelante: el mismo contacto puede existir en
+        // dos bloques distintos sin que uno pise al otro.
+        crm_id: `${blockId}:${crmId || md5(`${name}|${rawPhone}|${created}`)}`,
         name,
         phone: normPhone(rawPhone),
         phone_raw: rawPhone,
@@ -144,6 +146,7 @@ function importContacts(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult
         tags: cTags > 0 ? cellStr(row.getCell(cTags).value) : "",
         created_at: created,
         source_file: sourceFile,
+        block_id: blockId,
       };
       const r = ins.run(rec);
       if (r.changes > 0) inserted++;
@@ -154,7 +157,7 @@ function importContacts(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult
   return { sheet: ws.name, kind: "contactos", inserted, duplicates };
 }
 
-function importSales(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
+function importSales(ws: ExcelJS.Worksheet, sourceFile: string, blockId: number): ImportResult {
   const db = getDb();
   const map = headerMap(ws);
   const cBranch = findCol(map, "nombre_suc");
@@ -167,8 +170,8 @@ function importSales(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
   const cInvoices = findCol(map, "total facturas");
 
   const ins = db.prepare(`
-    INSERT OR IGNORE INTO sales (uniq_hash, branch, client, phone, phone_raw, alta_date, birthday, last_sale_date, amount, invoices, source_file)
-    VALUES (@uniq_hash, @branch, @client, @phone, @phone_raw, @alta_date, @birthday, @last_sale_date, @amount, @invoices, @source_file)
+    INSERT OR IGNORE INTO sales (uniq_hash, branch, client, phone, phone_raw, alta_date, birthday, last_sale_date, amount, invoices, source_file, block_id)
+    VALUES (@uniq_hash, @branch, @client, @phone, @phone_raw, @alta_date, @birthday, @last_sale_date, @amount, @invoices, @source_file, @block_id)
   `);
 
   let inserted = 0;
@@ -183,7 +186,7 @@ function importSales(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
       const lastSale = cLast > 0 ? parseDate(row.getCell(cLast).value) : "";
       const amount = cAmount > 0 ? cellNum(row.getCell(cAmount).value) : 0;
       const rec = {
-        uniq_hash: md5(`${branch}|${client}|${rawPhone}|${lastSale}|${amount}`),
+        uniq_hash: md5(`${blockId}|${branch}|${client}|${rawPhone}|${lastSale}|${amount}`),
         branch,
         client,
         phone: normPhone(rawPhone),
@@ -194,6 +197,7 @@ function importSales(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
         amount,
         invoices: cInvoices > 0 ? cellNum(row.getCell(cInvoices).value) : 0,
         source_file: sourceFile,
+        block_id: blockId,
       };
       const r = ins.run(rec);
       if (r.changes > 0) inserted++;
@@ -204,7 +208,7 @@ function importSales(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
   return { sheet: ws.name, kind: "ventas", inserted, duplicates };
 }
 
-function importMeta(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
+function importMeta(ws: ExcelJS.Worksheet, sourceFile: string, blockId: number): ImportResult {
   const db = getDb();
   const map = headerMap(ws);
   const cCamp = findCol(map, "nombre de la campana", "nombre de la campaña");
@@ -221,8 +225,8 @@ function importMeta(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
   const cEnd = findCol(map, "finalizacion", "finalización");
 
   const ins = db.prepare(`
-    INSERT OR IGNORE INTO meta_rows (uniq_hash, campaign, adset, age, sex, reach, impressions, result_type, results, spend, cost_per_result, start_date, end_date, level, source_file)
-    VALUES (@uniq_hash, @campaign, @adset, @age, @sex, @reach, @impressions, @result_type, @results, @spend, @cost_per_result, @start_date, @end_date, @level, @source_file)
+    INSERT OR IGNORE INTO meta_rows (uniq_hash, campaign, adset, age, sex, reach, impressions, result_type, results, spend, cost_per_result, start_date, end_date, level, source_file, block_id)
+    VALUES (@uniq_hash, @campaign, @adset, @age, @sex, @reach, @impressions, @result_type, @results, @spend, @cost_per_result, @start_date, @end_date, @level, @source_file, @block_id)
   `);
 
   let inserted = 0;
@@ -260,10 +264,11 @@ function importMeta(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
         end_date: cEnd > 0 ? cellStr(row.getCell(cEnd).value) : "",
         level,
         source_file: sourceFile,
+        block_id: blockId,
         uniq_hash: "",
       };
       rec.uniq_hash = md5(
-        [rec.campaign, rec.adset, rec.age, rec.sex, rec.reach, rec.impressions, rec.result_type, rec.results, rec.spend, rec.start_date, rec.end_date].join("|")
+        [blockId, rec.campaign, rec.adset, rec.age, rec.sex, rec.reach, rec.impressions, rec.result_type, rec.results, rec.spend, rec.start_date, rec.end_date].join("|")
       );
       const r = ins.run(rec);
       if (r.changes > 0) inserted++;
@@ -276,7 +281,12 @@ function importMeta(ws: ExcelJS.Worksheet, sourceFile: string): ImportResult {
 
 // ---------- punto de entrada ----------
 
-export async function importWorkbook(buffer: Buffer, fileName: string): Promise<ImportResult[]> {
+export async function importWorkbook(
+  buffer: Buffer,
+  fileName: string,
+  blockId: number,
+  fileId: number | null = null
+): Promise<ImportResult[]> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer);
   const db = getDb();
@@ -286,13 +296,13 @@ export async function importWorkbook(buffer: Buffer, fileName: string): Promise<
     if (ws.rowCount < 2) continue;
     const kind = detectKind(headerMap(ws));
     let res: ImportResult;
-    if (kind === "contactos") res = importContacts(ws, fileName);
-    else if (kind === "ventas") res = importSales(ws, fileName);
-    else if (kind === "meta") res = importMeta(ws, fileName);
+    if (kind === "contactos") res = importContacts(ws, fileName, blockId);
+    else if (kind === "ventas") res = importSales(ws, fileName, blockId);
+    else if (kind === "meta") res = importMeta(ws, fileName, blockId);
     else continue; // hojas pivot u otras se ignoran
     db.prepare(
-      "INSERT INTO import_log (file, sheet, kind, inserted, duplicates) VALUES (?, ?, ?, ?, ?)"
-    ).run(fileName, res.sheet, res.kind, res.inserted, res.duplicates);
+      "INSERT INTO import_log (file, sheet, kind, inserted, duplicates, block_id, file_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(fileName, res.sheet, res.kind, res.inserted, res.duplicates, blockId, fileId);
     results.push(res);
   }
   return results;

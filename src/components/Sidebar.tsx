@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Megaphone,
+  FileBarChart,
   Sparkles,
   Database,
   LogOut,
@@ -12,7 +12,7 @@ import {
 import ConsultoriaBadge from "./ConsultoriaBadge";
 
 const NAV = [
-  { href: "/pauta", label: "Pauta Meta", icon: Megaphone },
+  { href: "/informe", label: "Informe", icon: FileBarChart },
   { href: "/chat", label: "Chat IA", icon: Sparkles },
   { href: "/datos", label: "Datos", icon: Database },
 ];

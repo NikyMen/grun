@@ -1,8 +1,9 @@
-import { getDb } from "./db";
+import fs from "fs";
+import path from "path";
+import { getDb, uploadsDir } from "./db";
 
 export type Filters = {
-  from?: string; // YYYY-MM-DD
-  to?: string;
+  block?: string; // id del bloque de carga; vacío = todos los bloques
   campaign?: string;
   adset?: string;
   age?: string;
@@ -18,6 +19,7 @@ type Row = Record<string, unknown>;
 function metaWhere(f: Filters, level: string) {
   const conds: string[] = ["level = ?"];
   const params: unknown[] = [level];
+  if (f.block) { conds.push("block_id = ?"); params.push(Number(f.block)); }
   if (f.campaign) { conds.push("campaign = ?"); params.push(f.campaign); }
   if (f.adset) { conds.push("adset = ?"); params.push(f.adset); }
   if (f.resultType) { conds.push("result_type = ?"); params.push(f.resultType); }
@@ -28,20 +30,18 @@ function metaWhere(f: Filters, level: string) {
   return { where: conds.join(" AND "), params };
 }
 
-function contactsWhere(f: Filters) {
+function contactsWhere(f: Filters, prefix = "") {
   const conds: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (f.from) { conds.push("created_at >= ?"); params.push(`${f.from} 00:00:00`); }
-  if (f.to) { conds.push("created_at <= ?"); params.push(`${f.to} 23:59:59`); }
-  if (f.branch) { conds.push("branch = ?"); params.push(f.branch); }
+  if (f.block) { conds.push(`${prefix}block_id = ?`); params.push(Number(f.block)); }
+  if (f.branch) { conds.push(`${prefix}branch = ?`); params.push(f.branch); }
   return { where: conds.join(" AND "), params };
 }
 
 function salesWhere(f: Filters, prefix = "") {
   const conds: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (f.from) { conds.push(`${prefix}last_sale_date >= ?`); params.push(f.from); }
-  if (f.to) { conds.push(`${prefix}last_sale_date <= ?`); params.push(f.to); }
+  if (f.block) { conds.push(`${prefix}block_id = ?`); params.push(Number(f.block)); }
   if (f.branch) { conds.push(`${prefix}branch = ?`); params.push(f.branch); }
   return { where: conds.join(" AND "), params };
 }
@@ -52,6 +52,7 @@ export function getFilterOptions() {
   const db = getDb();
   const col = (sql: string) => (db.prepare(sql).all() as Row[]).map((r) => Object.values(r)[0] as string);
   return {
+    blocks: db.prepare("SELECT id, name, created_at FROM blocks ORDER BY id DESC").all(),
     campaigns: col("SELECT DISTINCT campaign FROM meta_rows WHERE campaign != '' ORDER BY campaign"),
     adsets: col("SELECT DISTINCT adset FROM meta_rows WHERE adset NOT IN ('', 'All') ORDER BY adset"),
     ages: col("SELECT DISTINCT age FROM meta_rows WHERE age NOT IN ('', 'All') ORDER BY age"),
@@ -240,7 +241,7 @@ export function getVentas(f: Filters) {
 
 export function getMatching(f: Filters) {
   const db = getDb();
-  const cw = contactsWhere(f);
+  const cw = contactsWhere(f, "c.");
   const sw = salesWhere(f, "s.");
 
   const matches = db.prepare(`
@@ -287,7 +288,62 @@ export function getMatching(f: Filters) {
 
 export function getImportLog() {
   const db = getDb();
-  return db.prepare("SELECT * FROM import_log ORDER BY id DESC LIMIT 50").all();
+  return db.prepare(`
+    SELECT l.*, b.name blockName, f.name fileName, f.size fileSize
+    FROM import_log l
+    LEFT JOIN blocks b ON b.id = l.block_id
+    LEFT JOIN uploaded_files f ON f.id = l.file_id
+    ORDER BY l.id DESC LIMIT 50
+  `).all();
+}
+
+// Archivos originales subidos, con las hojas que se importaron de cada uno.
+export function getFiles() {
+  const db = getDb();
+  return db.prepare(`
+    SELECT f.id, f.name, f.size, f.created_at, f.block_id blockId, b.name blockName,
+           (SELECT COUNT(*) FROM import_log l WHERE l.file_id = f.id) sheets,
+           (SELECT COALESCE(SUM(l.inserted), 0) FROM import_log l WHERE l.file_id = f.id) inserted
+    FROM uploaded_files f LEFT JOIN blocks b ON b.id = f.block_id
+    ORDER BY f.id DESC
+  `).all();
+}
+
+// Bloques con el volumen de cada tabla, para la pantalla de Datos.
+export function getBlocks() {
+  const db = getDb();
+  return db.prepare(`
+    SELECT b.id, b.name, b.created_at,
+           (SELECT COUNT(*) FROM meta_rows m WHERE m.block_id = b.id) metaRows,
+           (SELECT COUNT(*) FROM contacts c WHERE c.block_id = b.id) contacts,
+           (SELECT COUNT(*) FROM sales s WHERE s.block_id = b.id) sales
+    FROM blocks b ORDER BY b.id DESC
+  `).all();
+}
+
+export function renameBlock(id: number, name: string) {
+  getDb().prepare("UPDATE blocks SET name = ? WHERE id = ?").run(name, id);
+}
+
+export function deleteBlock(id: number) {
+  const db = getDb();
+  const files = db
+    .prepare("SELECT stored_name FROM uploaded_files WHERE block_id = ?")
+    .all(id) as { stored_name: string }[];
+  db.transaction(() => {
+    for (const t of ["contacts", "sales", "meta_rows", "import_log", "uploaded_files"]) {
+      db.prepare(`DELETE FROM ${t} WHERE block_id = ?`).run(id);
+    }
+    db.prepare("DELETE FROM blocks WHERE id = ?").run(id);
+  })();
+  // Los Excel guardados del bloque se van con él.
+  for (const f of files) {
+    try {
+      fs.unlinkSync(path.join(uploadsDir(), f.stored_name));
+    } catch {
+      /* si ya no está, no hay nada que borrar */
+    }
+  }
 }
 
 // Resumen compacto de todos los datos: contexto para el chat / insights de IA

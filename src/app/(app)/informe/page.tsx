@@ -1,7 +1,8 @@
 "use client";
 
-/* Pauta Meta — foco: cuánto invertimos en publicidad y cuánto de la facturación
-   viene de esos contactos (cruce por teléfono con el CRM) */
+/* Informe — foco: cuánto invertimos en publicidad y cuánto de la facturación
+   viene de esos contactos (cruce por teléfono con el CRM).
+   Los datos son fríos: se leen por bloque de carga, no en tiempo real. */
 
 import { useEffect, useState } from "react";
 import {
@@ -16,7 +17,7 @@ import { fmtMoney, fmtNum, fmtPct } from "@/lib/fmt";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export default function PautaPage() {
+export default function InformePage() {
   const [f, setF] = useState<FilterValues>({});
   const [ov, setOv] = useState<any>(null);
   const [pauta, setPauta] = useState<any>(null);
@@ -37,14 +38,14 @@ export default function PautaPage() {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-black text-grun-950">Pauta Meta</h1>
+        <h1 className="text-2xl font-black text-grun-950">Informe</h1>
         <p className="text-sm text-gray-500">
           Cuánto invertimos en publicidad y qué parte de la facturación viene de esos contactos
-          (cruce por teléfono con el CRM)
+          (cruce por teléfono con el CRM). Elegí el bloque de datos que querés mirar.
         </p>
       </header>
 
-      <Filters value={f} onChange={setF} show={["dates", "campaign"]} />
+      <Filters value={f} onChange={setF} show={["block", "campaign"]} />
 
       {ov && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -56,7 +57,7 @@ export default function PautaPage() {
             accent
           />
           <KpiCard
-            label="Facturación del período"
+            label="Facturación del bloque"
             value={fmtMoney(ov.revenue)}
             hint={`${fmtNum(ov.sales)} ventas en total`}
             icon={Banknote}
@@ -173,7 +174,7 @@ function InvestmentVsBilling({ ov, linkedPct, roas }: { ov: any; linkedPct: numb
           color={GREEN}
           sub={`${fmtNum(ov.matchedSales)} de ${fmtNum(ov.sales)} ventas (${fmtPct(linkedPct)} del total)`}
         />
-        <Row label="Facturación total del período" value={totalRev} color="#c8d5cd" />
+        <Row label="Facturación total del bloque" value={totalRev} color="#c8d5cd" />
       </div>
     </div>
   );

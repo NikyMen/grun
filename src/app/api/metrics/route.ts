@@ -8,6 +8,8 @@ import {
   getVentas,
   getMatching,
   getImportLog,
+  getBlocks,
+  getFiles,
 } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +18,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const section = sp.get("section") || "overview";
   const f: Filters = {
-    from: sp.get("from") || undefined,
-    to: sp.get("to") || undefined,
+    block: sp.get("block") || undefined,
     campaign: sp.get("campaign") || undefined,
     adset: sp.get("adset") || undefined,
     age: sp.get("age") || undefined,
@@ -40,6 +41,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(getVentas(f));
       case "matching":
         return NextResponse.json(getMatching(f));
+      case "files":
+        return NextResponse.json(getFiles());
+      case "blocks":
+        return NextResponse.json(getBlocks());
       case "importlog":
         return NextResponse.json(getImportLog());
       default:

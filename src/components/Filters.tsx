@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, Layers } from "lucide-react";
 
 export type FilterValues = {
-  from?: string;
-  to?: string;
+  block?: string;
   campaign?: string;
   adset?: string;
   age?: string;
@@ -14,7 +13,10 @@ export type FilterValues = {
   branch?: string;
 };
 
+type Block = { id: number; name: string; created_at: string };
+
 type Options = {
+  blocks: Block[];
   campaigns: string[];
   adsets: string[];
   ages: string[];
@@ -40,7 +42,7 @@ export default function Filters({
 }: {
   value: FilterValues;
   onChange: (f: FilterValues) => void;
-  show: ("dates" | "campaign" | "adset" | "age" | "sex" | "resultType" | "branch")[];
+  show: ("block" | "campaign" | "adset" | "age" | "sex" | "resultType" | "branch")[];
   branchSource?: "contacts" | "sales";
 }) {
   const [options, setOptions] = useState<Options | null>(null);
@@ -67,12 +69,21 @@ export default function Filters({
       <span className="flex items-center gap-1.5 text-xs font-semibold text-grun-800 mr-1">
         <SlidersHorizontal size={14} /> Filtros
       </span>
-      {show.includes("dates") && (
-        <>
-          <input type="date" value={value.from || ""} onChange={(e) => set("from", e.target.value)} className={sel} title="Desde" />
-          <span className="text-xs text-gray-400">→</span>
-          <input type="date" value={value.to || ""} onChange={(e) => set("to", e.target.value)} className={sel} title="Hasta" />
-        </>
+      {show.includes("block") && (
+        <label className="flex items-center gap-1.5">
+          <Layers size={13} className="text-grun-700" />
+          <select
+            value={value.block || ""}
+            onChange={(e) => set("block", e.target.value)}
+            className={`${sel} max-w-[240px]`}
+            title="Bloque de datos"
+          >
+            <option value="">Todos los bloques</option>
+            {options?.blocks.map((b) => (
+              <option key={b.id} value={String(b.id)}>{b.name}</option>
+            ))}
+          </select>
+        </label>
       )}
       {show.includes("campaign") && (
         <select value={value.campaign || ""} onChange={(e) => set("campaign", e.target.value)} className={sel}>

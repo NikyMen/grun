@@ -1,9 +1,12 @@
-/* Carga inicial: importa los Excel de ejemplo a la base de datos local.
-   Uso: pnpm seed [ruta1.xlsx ruta2.xlsx ...]  (sin argumentos usa los del escritorio) */
+/* Carga inicial: importa los Excel de ejemplo a la base de datos local, todos
+   dentro de un mismo bloque.
+   Uso: pnpm seed [--bloque "Nombre"] [ruta1.xlsx ruta2.xlsx ...]
+        (sin rutas usa los archivos del escritorio) */
 
 import fs from "fs";
 import path from "path";
 import { importWorkbook } from "../src/lib/importers";
+import { createBlock } from "../src/lib/db";
 
 const DEFAULT_FILES = [
   "C:\\Users\\Invitado a usar\\Desktop\\reporte-1-15-06 .xlsx",
@@ -11,21 +14,29 @@ const DEFAULT_FILES = [
 ];
 
 async function main() {
-  const files = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT_FILES;
+  const args = process.argv.slice(2);
+  const flag = args.indexOf("--bloque");
+  const blockName = flag >= 0 ? args[flag + 1] || "Carga inicial" : "Carga inicial";
+  if (flag >= 0) args.splice(flag, 2);
+
+  const files = args.length ? args : DEFAULT_FILES;
+  const blockId = createBlock(blockName);
+  console.log(`Bloque: ${blockName}`);
+
   for (const file of files) {
     if (!fs.existsSync(file)) {
       console.error(`✗ No existe: ${file}`);
       continue;
     }
     const buffer = fs.readFileSync(file);
-    const results = await importWorkbook(buffer, path.basename(file));
+    const results = await importWorkbook(buffer, path.basename(file), blockId);
     console.log(`\n📄 ${path.basename(file)}`);
     for (const r of results) {
       console.log(`   hoja "${r.sheet}" [${r.kind}]: ${r.inserted} nuevos, ${r.duplicates} duplicados omitidos`);
     }
     if (results.length === 0) console.log("   (sin hojas reconocidas)");
   }
-  console.log("\n✔ Carga inicial terminada. Base: data/grun.db");
+  console.log(`\n✔ Carga terminada en el bloque "${blockName}". Base: data/grun.db`);
 }
 
 main().catch((e) => {

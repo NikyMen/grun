@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { getDb } from "@/lib/db";
+import { defaultManualBlock, getDb } from "@/lib/db";
 import { normPhone } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
@@ -15,26 +15,28 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const d = body.data as Record<string, string>;
   const md5 = (s: string) => crypto.createHash("md5").update(s).digest("hex");
+  // El registro entra al bloque elegido; si no se eligió ninguno, al de carga manual.
+  const blockId = Number(body.blockId) || defaultManualBlock();
 
   try {
     if (body.kind === "contacto") {
       if (!d.name) return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
       const created = d.created_at ? d.created_at.replace("T", " ") + (d.created_at.length === 16 ? ":00" : "") : new Date().toISOString().slice(0, 19).replace("T", " ");
       const r = db.prepare(`
-        INSERT OR IGNORE INTO contacts (crm_id, name, phone, phone_raw, branch, created_at, source_file)
-        VALUES (?, ?, ?, ?, ?, ?, 'manual')
-      `).run(md5(`${d.name}|${d.phone || ""}|${created}`), d.name, normPhone(d.phone), d.phone || "", d.branch || "", created);
+        INSERT OR IGNORE INTO contacts (crm_id, name, phone, phone_raw, branch, created_at, source_file, block_id)
+        VALUES (?, ?, ?, ?, ?, ?, 'manual', ?)
+      `).run(`${blockId}:${md5(`${d.name}|${d.phone || ""}|${created}`)}`, d.name, normPhone(d.phone), d.phone || "", d.branch || "", created, blockId);
       return result(r.changes);
     }
     if (body.kind === "venta") {
       if (!d.client || !d.amount) return NextResponse.json({ error: "Cliente e importe son obligatorios" }, { status: 400 });
       const amount = parseFloat(d.amount) || 0;
       const r = db.prepare(`
-        INSERT OR IGNORE INTO sales (uniq_hash, branch, client, phone, phone_raw, last_sale_date, amount, invoices, source_file)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')
+        INSERT OR IGNORE INTO sales (uniq_hash, branch, client, phone, phone_raw, last_sale_date, amount, invoices, source_file, block_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)
       `).run(
-        md5(`${d.branch || ""}|${d.client}|${d.phone || ""}|${d.date || ""}|${amount}`),
-        d.branch || "", d.client, normPhone(d.phone), d.phone || "", d.date || "", amount, parseInt(d.invoices) || 1
+        md5(`${blockId}|${d.branch || ""}|${d.client}|${d.phone || ""}|${d.date || ""}|${amount}`),
+        d.branch || "", d.client, normPhone(d.phone), d.phone || "", d.date || "", amount, parseInt(d.invoices) || 1, blockId
       );
       return result(r.changes);
     }
@@ -50,9 +52,9 @@ export async function POST(req: NextRequest) {
       ];
       const level = !d.adset || d.adset === "All" ? "campaign" : "adset";
       const r = db.prepare(`
-        INSERT OR IGNORE INTO meta_rows (uniq_hash, campaign, adset, age, sex, reach, impressions, result_type, results, spend, cost_per_result, start_date, end_date, level, source_file)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')
-      `).run(md5(rec.join("|")), ...rec, level);
+        INSERT OR IGNORE INTO meta_rows (uniq_hash, campaign, adset, age, sex, reach, impressions, result_type, results, spend, cost_per_result, start_date, end_date, level, source_file, block_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)
+      `).run(md5([blockId, ...rec].join("|")), ...rec, level, blockId);
       return result(r.changes);
     }
     return NextResponse.json({ error: "Tipo desconocido" }, { status: 400 });
